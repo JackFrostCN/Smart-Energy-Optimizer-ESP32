@@ -3,6 +3,9 @@
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_BME280.h>
 #include <BH1750.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
 
 // OLED settings
 #define SCREEN_WIDTH 128
@@ -32,6 +35,17 @@ const long interval = 1000; // 1s update
 bool fanOn = false;
 bool lightOn = false;
 bool acOn = false;
+
+// Outdoor weather details
+float outdoorTemp = 0.0;
+float outdoorHum = 0.0;
+
+// WiFi credentials
+const char* ssid = "Noname";
+const char* password = "1122334455";
+
+// OpenWeather API URL
+String weatherUrl = "https://api.openweathermap.org/data/2.5/weather?lat=7.2532&lon=80.3454&appid=eca483009d0e5e53599351b8f8f33a30";
 
 void setup() {
   Serial.begin(115200);
@@ -64,7 +78,44 @@ void setup() {
   digitalWrite(LIGHT_RELAY_PIN, HIGH);
   digitalWrite(AC_RELAY_PIN, HIGH);
 
+  // Connect to WiFi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("WiFi Connected");
+
   Serial.println("System Ready!");
+}
+
+void getOutdoorWeather() {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(weatherUrl); // OpenWeatherMap API URL
+
+    int httpCode = http.GET();  // Send GET request
+    if (httpCode == 200) {
+      String payload = http.getString();
+      // Use DynamicJsonDocument for dynamic allocation
+      DynamicJsonDocument doc(1024);
+
+      DeserializationError error = deserializeJson(doc, payload);
+
+      if (!error) {
+        // Convert temperature from Kelvin to Celsius
+        outdoorTemp = doc["main"]["temp"].as<float>() - 273.15;
+        outdoorHum = doc["main"]["humidity"].as<float>();
+      } else {
+        Serial.println("Error parsing JSON");
+      }
+    } else {
+      Serial.println("Failed to get weather data");
+    }
+    http.end();
+  } else {
+    Serial.println("WiFi Disconnected");
+  }
 }
 
 void loop() {
@@ -72,8 +123,8 @@ void loop() {
   if (currentMillis - previousMillis >= interval) {
     previousMillis = currentMillis;
 
-    float temp = bme.readTemperature()-5.0;      // Temperature in Celsius
-    float hum = bme.readHumidity()+10.0;          // Humidity in %
+    float temp = bme.readTemperature() - 5.0;      // Temperature in Celsius
+    float hum = bme.readHumidity() + 10.0;          // Humidity in %
     float pressure = bme.readPressure() / 100.0F;  // Pressure in hPa
     float lux = lightMeter.readLightLevel();  // Light in lux
     bool motion = digitalRead(PIR_PIN);      // Motion detected or not
@@ -102,40 +153,68 @@ void loop() {
 
     // ---- OLED Display ----
     display.clearDisplay();
-    
-    // Top section - Temperature, Humidity, and Pressure
+
+    if (WiFi.status() == WL_CONNECTED) {
+      getOutdoorWeather(); // Get outdoor weather only when WiFi is connected
+    }
+
+    // Display Indoor Sensor Data
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
+
+    // Indoor section - Temperature, Humidity, and Pressure
     display.setCursor(0, 0);
-    display.print("Temp: ");
+    display.print("Temp:");
     display.print(temp, 1); display.print((char)247); display.print("C");
 
-    display.setCursor(0, 10);
-    display.print("Humidity: ");
+    display.setCursor(80, 0);
+    display.print("Hum:");
     display.print(hum, 0); display.print("%");
 
-    display.setCursor(0, 20);
-    display.print("Pressure: ");
+    display.setCursor(0, 10);
+    display.print("Air Pres:");
     display.print(pressure, 1); display.print(" hPa");
 
-    // Middle section - Light and Motion
-    display.setCursor(0, 30);
-    display.print("Light: ");
-    display.print(lux, 0); display.print(" lux");
+    display.drawLine(0, 30, SCREEN_WIDTH, 30, SSD1306_WHITE);
+    display.drawLine(0, 43, SCREEN_WIDTH, 43, SSD1306_WHITE);
+    
+    // Light Level
+     display.setCursor(0, 20);
+     display.print("Light: ");
+     display.print(lux, 0); display.print(" lux");
+    
+    // Outdoor section - Temperature and Humidity
+    display.setCursor(0, 33);
+    display.print("O Temp:");
+    display.print(outdoorTemp, 1); display.print((char)247); display.print("C");
 
-    display.setCursor(0, 40); // Reduced the vertical gap here
-    display.print("Motion:");
-    display.print(motion ? "Yes" : "No");
+    display.setCursor(80, 33);
+    display.print("Hum:");
+    display.print(outdoorHum, 0); display.print("%");
 
-    // Bottom section - Device statuses
-    display.setCursor(0, 50);
+   
+
+    // System Status (S for system on/off)
+    display.setCursor(0, 46);
+    display.print("Sys: ");
+    display.print(motion ? "ON" : "OFF");
+
+    // Device statuses
+    display.setCursor(0, 56);
     display.print("Fan: "); display.print(fanOn ? "ON" : "OFF");
 
-    display.setCursor(65, 50);
+    display.setCursor(65, 56);
     display.print("Light: "); display.print(lightOn ? "ON" : "OFF");
 
-    display.setCursor(65, 40); // Adjusted for better placement
+    display.setCursor(65, 46);
     display.print("AC: "); display.print(acOn ? "ON" : "OFF");
+
+    // Show "No WiFi" if WiFi is disconnected
+    if (WiFi.status() != WL_CONNECTED) {
+      display.setCursor(0, 60);
+      display.setTextSize(1);
+      display.print("No WiFi");
+    }
 
     display.display();
   }
