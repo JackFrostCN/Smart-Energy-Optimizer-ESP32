@@ -25,16 +25,16 @@ BH1750 lightMeter;
 
 // Timing
 unsigned long previousMillis = 0;
-const long updateInterval = 1000;        // Main update interval
+const long updateInterval = 1000;        
 unsigned long lastWeatherAttempt = 0;
-const long weatherRetryInterval = 30000; // 30 seconds between WiFi attempts
+const long weatherRetryInterval = 30000; 
 
 // System states
 bool fanOn = false;
 bool lightOn = false;
 bool acOn = false;
-float outdoorTemp = 0.0;
-float outdoorHum = 0.0;
+float outdoorTemp = -999.0;
+float outdoorHum = -999.0;
 
 // WiFi credentials
 const char* ssid = "Noname";
@@ -115,53 +115,52 @@ void manageWiFi() {
   }
 }
 
-void updateDisplay(float temp, float hum, float pressure, float lux, bool motion) {
+void updateDisplay(float temp, float hum, bool motion) {
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
 
-  // Original UI Layout
-  // Indoor section
-  display.setCursor(0, 0);
+  // Indoor info
+  display.setCursor(0, 10);
   display.print("Temp:");
   display.print(temp, 1);
   display.print((char)247);
   display.print("C");
 
-  display.setCursor(82, 0);
+  display.setCursor(81, 10);
   display.print("Hum:");
   display.print(hum, 0);
   display.print("%");
 
-  display.setCursor(0, 10);
-  display.print("Air Pres:");
-  display.print(pressure, 1);
-  display.print(" hPa");
-
-  display.setCursor(0, 20);
-  display.print("Light: ");
-  display.print(lux, 0);
-  display.print(" lux");
-
   // Horizontal lines
-  display.drawLine(0, 30, SCREEN_WIDTH, 30, SSD1306_WHITE);
+  display.drawLine(0, 20, SCREEN_WIDTH, 20, SSD1306_WHITE);
   display.drawLine(0, 43, SCREEN_WIDTH, 43, SSD1306_WHITE);
+  
+  // Text sections
+  display.setCursor(0, 0);
+  display.print("Indoor");
+  
+  display.setCursor(0, 22);
+  display.print("Outdoor");
 
-  // Outdoor section
+  // Outdoor info
   display.setCursor(0, 33);
-  if(WiFi.status() == WL_CONNECTED) {
-    display.print("O Temp:");
+  if(WiFi.status() != WL_CONNECTED) {
+    display.print("No WiFi");
+  } 
+  else if(outdoorTemp == -999.0 || outdoorHum == -999.0) {
+    display.print("WiFi Connected !");
+  }
+  else {
+    display.print("Temp:");
     display.print(outdoorTemp, 1);
     display.print((char)247);
     display.print("C");
 
-    display.setCursor(82, 33);
+    display.setCursor(81, 33);
     display.print("Hum:");
     display.print(outdoorHum, 0);
     display.print("%");
-  } else {
-    display.setCursor(0, 33);
-    display.print("Outdoor: No WiFi");
   }
 
   // System status
@@ -193,7 +192,6 @@ void loop() {
     // Read sensors
     float temp = bme.readTemperature() - 5.0;
     float hum = bme.readHumidity() + 10.0;
-    float pressure = bme.readPressure() / 100.0F;
     float lux = lightMeter.readLightLevel();
     bool motion = digitalRead(PIR_PIN);
 
@@ -208,7 +206,7 @@ void loop() {
     digitalWrite(AC_RELAY_PIN, acOn ? LOW : HIGH);
 
     // Update display
-    updateDisplay(temp, hum, pressure, lux, motion);
+    updateDisplay(temp, hum, motion);
   }
 
   // Handle WiFi/weather in background
@@ -217,6 +215,6 @@ void loop() {
   // Maintain WiFi connection
   if(WiFi.status() == WL_CONNECTED) {
     WiFiClient client;
-    client.stop(); // Maintain connection
+    client.stop(); 
   }
 }
