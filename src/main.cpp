@@ -39,7 +39,7 @@ float outdoorHum = -999.0;
 // WiFi credentials
 const char* ssid = "Noname";
 const char* password = "1122334455";
-const String weatherUrl = "https://api.openweathermap.org/data/2.5/weather?lat=7.2532&lon=80.3454&appid=eca483009d0e5e53599351b8f8f33a30";
+const String weatherUrl = "https://api.openweathermap.org/data/2.5/weather?lat=6.8177&lon=79.8749&appid=eca483009d0e5e53599351b8f8f33a30";
 
 void setup() {
   Serial.begin(115200);
