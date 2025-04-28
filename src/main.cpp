@@ -195,17 +195,27 @@ void loop() {
     float lux = lightMeter.readLightLevel();
     bool motion = digitalRead(PIR_PIN);
 
+    // Fan and AC control logic
+    if (temp > 30.0) {
+      fanOn = false;
+      acOn = true;
+    } else if (temp > 28.0) {
+      fanOn = true;
+      acOn = false;
+    } else {
+      fanOn = false;
+      acOn = false;
+    }
+
     // Control relays
-    fanOn = temp > 28.0;
     digitalWrite(FAN_RELAY_PIN, fanOn ? LOW : HIGH);
+    digitalWrite(AC_RELAY_PIN, acOn ? LOW : HIGH);
     
+    // Light control
     lightOn = motion && (lux < 100);
     digitalWrite(LIGHT_RELAY_PIN, lightOn ? LOW : HIGH);
-    
-    acOn = temp > 30.0;
-    digitalWrite(AC_RELAY_PIN, acOn ? LOW : HIGH);
 
-    // Update display
+    // Update OLED display
     updateDisplay(temp, hum, motion);
   }
 
